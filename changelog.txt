@@ -1,0 +1,12 @@
+---------------------------------------------------------------------------------------------------
+Version: 1.0.0
+Date: 2024-07-07
+  Info:
+    - First release of Spaghettorio.
+  Major Features:
+    - Randomized placement orientation
+    - Randomized recipe orientation for assemblers
+    - Rotation lock of placed entities
+    - Disabled blueprint placement
+    - Masochism
+    - More masochism
