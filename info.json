@@ -1,0 +1,8 @@
+{
+	"name": "spaghettorio",
+	"version": "0.0.1",
+	"title": "Spaghettorio",
+	"author": "Braxbro",
+	"factorio_version": "1.1",
+	"description": "Forces you to build spaghetti by scrambling the orientation of buildings you place."
+}
