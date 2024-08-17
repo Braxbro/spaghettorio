@@ -18,43 +18,29 @@ local directionLookup = {[0] = "north","northeast","east","southeast","south","s
 local exclude = {
     "straight-rail", "curved-rail", "rail", "gate", "rail-signal", "rail-chain-signal", "train-stop", -- rail stuff
     "transport-belt", "underground-belt", "splitter", "loader-1x1", "loader", "inserter", -- belt stuff
+    "pipe-to-ground", -- underground pipes
     "offshore-pump", "pump" -- pumps
 }
 
-local hasDummy = {} -- shouldn't in theory desync, since it doesn't exist except during the placement process
-
-script.on_event(defines.events.on_pre_build, function(data) -- check if placement needs to be refunded
-    local player = game.players[data.player_index]
-    if player.cursor_ghost or data.shift_build then return end -- if it's placing a ghost, don't do anything; that's handled when the ghost is actually created
-    if not player.cursor_stack.prototype then return end
-    if player.is_cursor_blueprint() then 
-        player.clear_cursor()
-        return
+local function checkEntityMaskCollision(maskA, maskB)
+    if maskA["not-colliding-with-itself"] and maskB["not-colliding-with-itself"] then -- if the masks are the same, they don't collide
+        local match = true
+        for index, _ in pairs(maskA) do
+            if maskA[index] ~= maskB[index] then
+                match = false
+            end
+        end
+        if match then return false end
+    elseif maskA["colliding-with-tiles-only"] or maskB["colliding-with-tiles-only"] then -- if one of the masks only cares about entities, they don't collide
+        return false
     end
-    local toPlace = player.cursor_stack.prototype.place_result
-    for _, excluded in pairs(exclude) do
-        if toPlace.type == excluded then return end -- If it's an excluded type, don't mess with it.
+    for index, _ in pairs(maskA) do -- don't need to check maskB, because if it's not present in maskA then it doesn't collide by default
+        if maskA[index] == maskB[index] then
+            return true
+        end
     end
-    ---@diagnostic disable-next-line: need-check-nil
-    if toPlace.has_flag("not-rotatable") or not toPlace.supports_direction then return end
-    local requiredDirection = player.surface.calculate_tile_properties({"spaghettorio-rotation"}, {data.position})["spaghettorio-rotation"][1] -- ranges from 0 to 7
-    ---@diagnostic disable-next-line: need-check-nil
-    if not toPlace.has_flag("building-direction-8-way") then -- If, for some reason, this is causing a nil index exception, someone else was an idiot.
-        requiredDirection = math.floor(requiredDirection / 2) * 2 -- change range from 0 to 7 to 0, 2, 4, 6
-    end
-    --game.print(requiredDirection .. " " .. directionLookup[requiredDirection])
-    if data.direction == requiredDirection then return end -- skip refund if the direction is already correct
-    if (not player.can_build_from_cursor{
-        position = data.position,
-        direction = requiredDirection,
-        alt = data.shift_build,
-        terrain_building_size = 1})
-        or data.direction ~= requiredDirection
-        then
-        player.cursor_stack.count = player.cursor_stack.count + 1; -- offset destruction of invalid entities
-        hasDummy[data.player_index] = true;
-    end
-end)
+    return false
+end
 
 script.on_event(defines.events.on_built_entity, function(data) -- handle rotation lock :3
     local player = game.players[data.player_index]
@@ -70,13 +56,7 @@ script.on_event(defines.events.on_built_entity, function(data) -- handle rotatio
     if not entity.has_flag("building-direction-8-way") then
         requiredDirection = math.floor(requiredDirection / 2) * 2 -- change range from 0 to 7 to 0, 2, 4, 6
     end
-    if not entity.supports_direction then
-        if hasDummy[data.player_index] then -- take away offset item
-            player.cursor_stack.count = player.cursor_stack.count - 1
-            hasDummy[data.player_index] = nil
-        end
-        return
-    end
+    if not entity.supports_direction then return end
     if entity.direction == requiredDirection then -- lock rotation and skip further steps if direction is correct
         entity.rotatable = false
         if hasDummy[data.player_index] then -- take away offset item
@@ -99,22 +79,26 @@ script.on_event(defines.events.on_built_entity, function(data) -- handle rotatio
                 if entity ~= otherEntity then -- for once, comparing by reference is correct! lol
                     player.play_sound{path = "utility/cannot_build", position = entity.position}
                     entity.destroy()
+                    return
                 end
             end
         end
     else
-        local args = {
-            position = entity.position,
-            direction = requiredDirection,
-            alt = false,
-            terrain_building_size = 1
-        }
-        if not player.can_build_from_cursor(args) then
-            player.play_sound{path = "utility/cannot_build", position = entity.position}
+        entity.direction = requiredDirection
+        entity.rotatable = false
+        for _, otherEntity in pairs(player.surface.find_entities_filtered{
+            area = entity.bounding_box
+        }) do
+            if otherEntity.type == "entity-ghost" then
+                otherEntity.destroy()
+            elseif entity ~= otherEntity then -- for once, comparing by reference is correct! lol
+                if checkEntityMaskCollision(entity.prototype.collision_mask, otherEntity.prototype.collision_mask) then
+                    player.play_sound{path = "utility/cannot_build", position = entity.position}
+                    player.mine_entity(entity)
+                    return
+                end
+            end
         end
-        entity.destroy()
-        hasDummy[data.player_index] = nil
-        player.build_from_cursor(args)
     end
 end)
 

@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 2024-08-17
+  Bugfixes:
+    - Fixed item deletion issue, hopefully.
+    - Fixed underground pipes being included in this mod's effects.
+---------------------------------------------------------------------------------------------------
 Version: 1.0.0
 Date: 2024-07-07
   Info:
