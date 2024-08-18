@@ -59,10 +59,6 @@ script.on_event(defines.events.on_built_entity, function(data) -- handle rotatio
     if not entity.supports_direction then return end
     if entity.direction == requiredDirection then -- lock rotation and skip further steps if direction is correct
         entity.rotatable = false
-        if hasDummy[data.player_index] then -- take away offset item
-            player.cursor_stack.count = player.cursor_stack.count - 1
-            hasDummy[data.player_index] = nil
-        end
         return
     end
     if entity.type == "entity-ghost" then
